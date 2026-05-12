@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <time.h>
+#include <pthread.h>
 
 typedef struct {
     int computed;
@@ -12,28 +13,37 @@ typedef struct {
     MemoizeObject *memoObj;
     int callCount;
     int useLazy;
+    pthread_mutex_t lock;
 } LazyObject;
 
 LazyObject lazyObjectInit(void (*code)(void *, MemoizeObject *), void *data, MemoizeObject *memoObj, int useLazy) {
-    return (LazyObject){ .code = code, .data = data, .memoObj = memoObj, .callCount = 0, .useLazy = useLazy };
+    LazyObject lazyObj =  { .code = code, .data = data, .memoObj = memoObj, .callCount = 0, .useLazy = useLazy };
+    pthread_mutex_init(&lazyObj.lock,NULL);
+    return lazyObj; 
 }
 
 
 void executeLazyCode(LazyObject *lazyObj) {
     if (lazyObj->memoObj == NULL) return;
+    
+    pthread_mutex_lock(&lazyObj->lock);
+
     if (lazyObj->useLazy && lazyObj->memoObj->computed) {
+        //TODO: this should be agnostic (we should have a way to if we want to print cast were without knowing the type)
         printf("Cached result: %ld\n", *(long *)lazyObj->memoObj->result);
-        return;
-    }
-    if (lazyObj->code != NULL) {
+    } else if (lazyObj->code != NULL) {
         lazyObj->code(lazyObj->data, lazyObj->memoObj);
         lazyObj->callCount++;
     }
+
+    pthread_mutex_unlock(&lazyObj->lock);
 }
 
 void resetComputed(LazyObject *lazyObj) {
     if (lazyObj->memoObj == NULL) return;
+    pthread_mutex_lock(&lazyObj->lock);
     lazyObj->memoObj->computed = 0;
+    pthread_mutex_unlock(&lazyObj->lock);
 }
 
 void lazyCode(void *data, MemoizeObject *memoObj) {
