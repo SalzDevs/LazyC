@@ -63,6 +63,13 @@ void lazyCode(void *data, MemoizeObject *memoObj) {
     printf("Done. Result: %ld\n", *(long *)memoObj->result);
 }
 
+void destroyLazyObj(LazyObject *lazyObj) {
+    if (lazyObj) {
+        pthread_mutex_destroy(&lazyObj->lock);
+        printf("Lazy Object destroyed...\n");
+    }
+}
+
 int main(int argc, char *argv[]) {
     int useLazy = 1;
     if (argc > 1 && argv[1][0] == '0') useLazy = 0;
@@ -85,6 +92,6 @@ int main(int argc, char *argv[]) {
     printf("Final result: %ld\n", *(long *)memoObj.result);
     printf("Time elapsed: %.2fs\n", (double)(clock() - start) / CLOCKS_PER_SEC);
 
-
+    destroyLazyObj(&lazyObj);
     return 0;
 }
