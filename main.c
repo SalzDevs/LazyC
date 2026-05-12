@@ -18,6 +18,11 @@ LazyObject lazyObjectInit(void (*code)(MemoizeObject *), MemoizeObject *memoObj,
     return (LazyObject){ .code = code, .memoObj = memoObj, .callCount = 0, .useLazy = useLazy };
 }
 
+void resetComputed(LazyObject *lazyObj) {
+    if (lazyObj->memoObj == NULL) return;
+    lazyObj->memoObj->computed = 0;
+}
+
 void executeLazyCode(LazyObject *lazyObj) {
     if (lazyObj->useLazy && lazyObj->memoObj != NULL && lazyObj->memoObj->computed) {
 
@@ -60,6 +65,8 @@ int main(int argc, char *argv[]) {
     executeLazyCode(&lazyObj);
     executeLazyCode(&lazyObj);
     executeLazyCode(&lazyObj);
+    //reset the computed flag so lazy eval restarts
+    resetComputed(&lazyObj);    
     executeLazyCode(&lazyObj);
     executeLazyCode(&lazyObj);
     executeLazyCode(&lazyObj);
