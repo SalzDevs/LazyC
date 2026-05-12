@@ -2,20 +2,33 @@
 #include <time.h>
 
 typedef struct {
-    void *data;
     int computed;
-    void *result;
+    void *result;   
 } MemoizeObject;
 
 typedef struct {
-    void (*code)(MemoizeObject *);
+    void (*code)(void *, MemoizeObject *);
+    void *data;
     MemoizeObject *memoObj;
     int callCount;
     int useLazy;
 } LazyObject;
 
-LazyObject lazyObjectInit(void (*code)(MemoizeObject *), MemoizeObject *memoObj, int useLazy) {
-    return (LazyObject){ .code = code, .memoObj = memoObj, .callCount = 0, .useLazy = useLazy };
+LazyObject lazyObjectInit(void (*code)(void *, MemoizeObject *), void *data, MemoizeObject *memoObj, int useLazy) {
+    return (LazyObject){ .code = code, .data = data, .memoObj = memoObj, .callCount = 0, .useLazy = useLazy };
+}
+
+
+void executeLazyCode(LazyObject *lazyObj) {
+    if (lazyObj->memoObj == NULL) return;
+    if (lazyObj->useLazy && lazyObj->memoObj->computed) {
+        printf("Cached result: %ld\n", *(long *)lazyObj->memoObj->result);
+        return;
+    }
+    if (lazyObj->code != NULL) {
+        lazyObj->code(lazyObj->data, lazyObj->memoObj);
+        lazyObj->callCount++;
+    }
 }
 
 void resetComputed(LazyObject *lazyObj) {
@@ -23,56 +36,45 @@ void resetComputed(LazyObject *lazyObj) {
     lazyObj->memoObj->computed = 0;
 }
 
-void executeLazyCode(LazyObject *lazyObj) {
-    if (lazyObj->useLazy && lazyObj->memoObj != NULL && lazyObj->memoObj->computed) {
+void lazyCode(void *data, MemoizeObject *memoObj) {
+    long iterations = *((long *)data);
+    printf("Computing for %ld iterations...\n", iterations);
 
-        printf("Already computed, returning cached result.\n");
-        return;
-    }
-    if (lazyObj->code != NULL) {
-        lazyObj->code(lazyObj->memoObj);
-        lazyObj->callCount++;
-    }
-}
-
-void lazyCode(MemoizeObject *memoObj) {
-    printf("Starting heavy computation...\n");
 
     volatile long result = 0;
-    for (long i = 0; i < 1000000000L; i++) {
-        result += i;
-    }
+    for (long i = 0; i < iterations; i++) result += i;
 
-    printf("Done. Result: %ld\n", result);
-    memoObj->result = "computation complete";
+
+    static long stored;     
+    stored = result;
+    memoObj->result = &stored;
+
     memoObj->computed = 1;
+    printf("Done. Result: %ld\n", *(long *)memoObj->result);
 }
 
 int main(int argc, char *argv[]) {
     int useLazy = 1;
     if (argc > 1 && argv[1][0] == '0') useLazy = 0;
 
-    printf("Mode: %s\n\n", useLazy ? "LAZY (memoized)" : "EAGER (no cache)");
 
-    MemoizeObject memoObj = { .data = NULL, .computed = 0, .result = NULL };
-    LazyObject lazyObj = lazyObjectInit(lazyCode, &memoObj, useLazy);
+    printf("Mode: %s\n\n", useLazy ? "LAZY" : "EAGER");
+
+
+    long iterations = 1000000000L;
+    MemoizeObject memoObj = { .computed = 0, .result = NULL };
+    LazyObject lazyObj = lazyObjectInit(lazyCode, &iterations, &memoObj, useLazy);
 
     clock_t start = clock();
 
     executeLazyCode(&lazyObj);
     executeLazyCode(&lazyObj);
     executeLazyCode(&lazyObj);
-    executeLazyCode(&lazyObj);
-    executeLazyCode(&lazyObj);
-    executeLazyCode(&lazyObj);
-    //reset the computed flag so lazy eval restarts
-    resetComputed(&lazyObj);    
-    executeLazyCode(&lazyObj);
-    executeLazyCode(&lazyObj);
-    executeLazyCode(&lazyObj);
 
     printf("\nTotal executions: %d\n", lazyObj.callCount);
+    printf("Final result: %ld\n", *(long *)memoObj.result);
     printf("Time elapsed: %.2fs\n", (double)(clock() - start) / CLOCKS_PER_SEC);
+
 
     return 0;
 }
