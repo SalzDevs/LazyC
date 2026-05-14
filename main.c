@@ -14,12 +14,13 @@ typedef struct {
   pthread_mutex_t lock;
 } LazyObject;
 
-LazyObject lazyObjectInit(LazyComputeFn compute, void *ctx, size_t outSize) {
+LazyObject lazyObjectInit(LazyComputeFn compute, void *ctx, void *out, size_t outSize) {
   LazyObject lazyObj = {
     .compute = compute,
     .ctx = ctx,
+    .out = out,
     .outSize = outSize,
-    .out = NULL
+    .computed = 0
   };
 
   pthread_mutex_init(&lazyObj.lock, NULL);
@@ -36,8 +37,8 @@ void executeLazyCode(LazyObject *lazyObj) {
 
   pthread_mutex_lock(&lazyObj->lock);
   
-  if (lazyObj->out == NULL) { // Double-checked locking
-    lazyObj->compute(lazyObj->ctx, &lazyObj->out);
+  if (!lazyObj->computed) {
+    lazyObj->compute(lazyObj->ctx, lazyObj->out);
     lazyObj->computed = 1;
   }
 
@@ -49,14 +50,15 @@ void resetComputed(LazyObject *lazyObj) {
   if (lazyObj == NULL) return;
   pthread_mutex_lock(&lazyObj->lock);
   lazyObj->computed = 0;
-  lazyObj->out = NULL;
   pthread_mutex_unlock(&lazyObj->lock); 
 }
 
 void IntensiveComputation(void *ctx, void *out) {
-  int *result = (int *)malloc(sizeof(int));
-  *result = 42;
-  *(int **)out = result;
+  int *result = out;
+  *result = 0;
+  for (int i = 0; i < 100000000; i++) {
+    *result += i;
+  }
 }
 
 void destroyLazyObj(LazyObject *lazyObj) {
@@ -65,14 +67,17 @@ void destroyLazyObj(LazyObject *lazyObj) {
 }
 
 int main() {
-  //Demo code 
+  int result = 0;
   LazyObject lazyObj = lazyObjectInit(
       IntensiveComputation,
       NULL,
-      sizeof(int *)
+      &result,
+      sizeof(result)
   );
   executeLazyCode(&lazyObj);
-  printf("Computed value: %d\n", *(int *)lazyObj.out);
+  printf("Computed value: %d\n", result);
+  printf("Computed? %d\n", lazyObj.computed);
   resetComputed(&lazyObj);
+  printf("Computed after reset? %d\n", lazyObj.computed);
   return 0;
 }
