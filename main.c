@@ -2,12 +2,13 @@
 #include <time.h>
 #include <pthread.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 typedef void (*LazyComputeFn)(void *ctx, void *out);
 
 typedef struct {
   LazyComputeFn compute;
-  int computed;
+  bool computed;
   void *ctx;
   void *out;
   size_t outSize;
@@ -20,12 +21,21 @@ LazyObject lazyObjectInit(LazyComputeFn compute, void *ctx, void *out, size_t ou
     .ctx = ctx,
     .out = out,
     .outSize = outSize,
-    .computed = 0
+    .computed = false 
   };
 
   pthread_mutex_init(&lazyObj.lock, NULL);
   return lazyObj;
 }
+
+bool validateLazyObject(const LazyObject *lazyObj) {
+  if (lazyObj == NULL) return false;
+  if (lazyObj->compute == NULL) return false;
+  if (lazyObj->out == NULL) return false;
+  if (lazyObj->outSize == 0) return false;
+  return true;
+}
+
 
 void executeLazyCode(LazyObject *lazyObj) {
   //TODO: Handle this as an error 
@@ -39,7 +49,7 @@ void executeLazyCode(LazyObject *lazyObj) {
   
   if (!lazyObj->computed) {
     lazyObj->compute(lazyObj->ctx, lazyObj->out);
-    lazyObj->computed = 1;
+    lazyObj->computed = true;
   }
 
   pthread_mutex_unlock(&lazyObj->lock);
@@ -49,7 +59,7 @@ void executeLazyCode(LazyObject *lazyObj) {
 void resetComputed(LazyObject *lazyObj) {
   if (lazyObj == NULL) return;
   pthread_mutex_lock(&lazyObj->lock);
-  lazyObj->computed = 0;
+  lazyObj->computed = false;
   pthread_mutex_unlock(&lazyObj->lock); 
 }
 
@@ -76,8 +86,10 @@ int main() {
   );
   executeLazyCode(&lazyObj);
   printf("Computed value: %d\n", result);
-  printf("Computed? %d\n", lazyObj.computed);
+  printf("Computed: ");
+  printf(lazyObj.computed ? "true\n" : "false\n");
   resetComputed(&lazyObj);
-  printf("Computed after reset? %d\n", lazyObj.computed);
+  printf("Computed: ");
+  printf(lazyObj.computed ? "true\n" : "false\n");
   return 0;
 }
