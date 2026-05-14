@@ -6,6 +6,15 @@
 
 typedef void (*LazyComputeFn)(void *ctx, void *out);
 
+typedef enum {
+  LAZY_OK = 0,
+  LAZY_ERR_NULL_OBJECT,
+  LAZY_ERR_NULL_COMPUTE,
+  LAZY_ERR_NULL_OUTPUT,
+  LAZY_ERR_INVALID_OUTPUT_SIZE,
+  LAZY_ERR_MUTEX_INIT,
+} LazyStatus;
+
 typedef struct {
   LazyComputeFn compute;
   bool computed;
@@ -15,27 +24,30 @@ typedef struct {
   pthread_mutex_t lock;
 } LazyObject;
 
-LazyObject lazyObjectInit(LazyComputeFn compute, void *ctx, void *out, size_t outSize) {
-  LazyObject lazyObj = {
-    .compute = compute,
-    .ctx = ctx,
-    .out = out,
-    .outSize = outSize,
-    .computed = false 
-  };
-
-  pthread_mutex_init(&lazyObj.lock, NULL);
-  return lazyObj;
+LazyStatus validateLazyObjectConfig(const LazyObject *lazyObj, LazyComputeFn compute, void *out, size_t outSize) {
+  if (lazyObj == NULL) return LAZY_ERR_NULL_OBJECT;
+  if (compute == NULL) return LAZY_ERR_NULL_COMPUTE;
+  if (out == NULL) return LAZY_ERR_NULL_OUTPUT;
+  if (outSize == 0) return LAZY_ERR_INVALID_OUTPUT_SIZE;
+  return LAZY_OK;
 }
 
-bool validateLazyObject(const LazyObject *lazyObj) {
-  if (lazyObj == NULL) return false;
-  if (lazyObj->compute == NULL) return false;
-  if (lazyObj->out == NULL) return false;
-  if (lazyObj->outSize == 0) return false;
-  return true;
-}
+LazyStatus lazyObjectInit(LazyObject *lazyObj, LazyComputeFn compute, void *ctx, void *out, size_t outSize) {
+  LazyStatus status = validateLazyObjectConfig(lazyObj, compute, out, outSize);
+  if (status != LAZY_OK) return status;
 
+  lazyObj->computed = false;
+  lazyObj->compute = compute;
+  lazyObj->ctx = ctx;
+  lazyObj->out = out;
+  lazyObj->outSize = outSize;
+
+  if (pthread_mutex_init(&lazyObj->lock, NULL) != 0) {
+    return LAZY_ERR_MUTEX_INIT;
+  }
+
+  return LAZY_OK;
+}
 
 void executeLazyCode(LazyObject *lazyObj) {
   //TODO: Handle this as an error 
@@ -78,12 +90,20 @@ void destroyLazyObj(LazyObject *lazyObj) {
 
 int main() {
   int result = 0;
-  LazyObject lazyObj = lazyObjectInit(
+  LazyObject lazyObj;
+  LazyStatus status = lazyObjectInit(
+      &lazyObj,
       IntensiveComputation,
       NULL,
       &result,
-      sizeof(result)
+      0
   );
+  printf("status: %d\n", status);
+  if (status != LAZY_OK) {
+    printf("INVALID CONFIG\n");
+    return 0;
+  }
+
   executeLazyCode(&lazyObj);
   printf("Computed value: %d\n", result);
   printf("Computed: ");
