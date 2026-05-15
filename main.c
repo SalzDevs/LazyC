@@ -12,6 +12,9 @@ typedef enum {
   LAZY_ERR_INVALID_OUTPUT_SIZE,
   LAZY_ERR_MUTEX_INIT,
   LAZY_ERR_COMPUTE,
+  LAZY_ERR_MUTEX_LOCK,
+  LAZY_ERR_MUTEX_UNLOCK,
+  LAZY_ERR_MUTEX_DESTROY
 } LazyStatus;
 
 typedef LazyStatus (*LazyComputeFn)(void *ctx, void *out);
@@ -63,18 +66,18 @@ LazyStatus executeLazyCode(LazyObject *lazyObj) {
     return LAZY_OK;
   }
 
-  pthread_mutex_lock(&lazyObj->lock);
+  if (pthread_mutex_lock(&lazyObj->lock) != 0) return LAZY_ERR_MUTEX_LOCK;
   
   if (!lazyObj->computed) {
     status = lazyObj->compute(lazyObj->ctx, lazyObj->out);
     if (status != LAZY_OK) {
-      pthread_mutex_unlock(&lazyObj->lock);
+      if (pthread_mutex_unlock(&lazyObj->lock) != 0) return LAZY_ERR_MUTEX_UNLOCK;
       return status;
     }
     lazyObj->computed = true;
   }
 
-  pthread_mutex_unlock(&lazyObj->lock);
+  if (pthread_mutex_unlock(&lazyObj->lock) != 0) return LAZY_ERR_MUTEX_UNLOCK;
   return LAZY_OK;
 }
 
@@ -82,9 +85,9 @@ LazyStatus executeLazyCode(LazyObject *lazyObj) {
 LazyStatus lazyReset(LazyObject *lazyObj) {
   LazyStatus status = validateLazyObjectConfig(lazyObj); 
   if (status != LAZY_OK) return status;
-  pthread_mutex_lock(&lazyObj->lock);
+  if (pthread_mutex_lock(&lazyObj->lock) != 0) return LAZY_ERR_MUTEX_LOCK;
   lazyObj->computed = false;
-  pthread_mutex_unlock(&lazyObj->lock);
+  if (pthread_mutex_unlock(&lazyObj->lock) != 0) return LAZY_ERR_MUTEX_UNLOCK;
   return LAZY_OK;
 }
 
@@ -97,9 +100,10 @@ LazyStatus IntensiveComputation(void *ctx, void *out) {
   return LAZY_OK;
 }
 
-void destroyLazyObj(LazyObject *lazyObj) {
-  if (lazyObj == NULL) return;
-  pthread_mutex_destroy(&lazyObj->lock); 
+LazyStatus destroyLazyObj(LazyObject *lazyObj) {
+  if (lazyObj == NULL) return LAZY_ERR_NULL_OBJECT;
+  if (pthread_mutex_destroy(&lazyObj->lock) != 0) return LAZY_ERR_MUTEX_DESTROY;
+  return LAZY_OK;
 }
 
 int main() {
@@ -130,11 +134,18 @@ int main() {
   printf(lazyObj.computed ? "true\n" : "false\n");
   status = lazyReset(&lazyObj);
   if (status != LAZY_OK) {
-    printf("Invalid Config\n");
+    printf("Reset failed\n");
+    destroyLazyObj(&lazyObj);
     return 0;
   }
   printf("Computed: ");
   printf(lazyObj.computed ? "true\n" : "false\n");
-  destroyLazyObj(&lazyObj);
+
+  status = destroyLazyObj(&lazyObj);
+  if (status != LAZY_OK) {
+    printf("Destroy failed\n");
+    return 0;
+  }
+
   return 0;
 }
