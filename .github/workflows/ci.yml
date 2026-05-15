@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build demo
+        run: make clean && make
+
+      - name: Run tests
+        run: make test
+
+      - name: Run sanitizer tests
+        run: make sanitize
