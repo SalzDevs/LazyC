@@ -4,16 +4,16 @@
 LazyStatus IntensiveComputation(void *ctx, void *out) {
   (void)ctx;
 
-  int *result = out;
+  long long *result = out;
   *result = 0;
-  for (int i = 0; i < 100000000; i++) {
+  for (long long i = 0; i < 100000000; i++) {
     *result += i;
   }
   return LAZY_OK;
 }
 
 int main() {
-  int result = 0;
+  long long result = 0;
   bool computed = false;
   Lazy *lazy = NULL;
 
@@ -37,7 +37,7 @@ int main() {
     return 0;
   }
 
-  printf("Computed value: %d\n", result);
+  printf("Computed value: %lld\n", result);
 
   status = lazy_is_computed(lazy, &computed);
   if (status != LAZY_OK) {
