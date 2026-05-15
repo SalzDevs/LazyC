@@ -4,8 +4,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-typedef void (*LazyComputeFn)(void *ctx, void *out);
-
 typedef enum {
   LAZY_OK = 0,
   LAZY_ERR_NULL_OBJECT,
@@ -13,7 +11,10 @@ typedef enum {
   LAZY_ERR_NULL_OUTPUT,
   LAZY_ERR_INVALID_OUTPUT_SIZE,
   LAZY_ERR_MUTEX_INIT,
+  LAZY_ERR_COMPUTE,
 } LazyStatus;
+
+typedef LazyStatus (*LazyComputeFn)(void *ctx, void *out);
 
 typedef struct {
   LazyComputeFn compute;
@@ -65,7 +66,11 @@ LazyStatus executeLazyCode(LazyObject *lazyObj) {
   pthread_mutex_lock(&lazyObj->lock);
   
   if (!lazyObj->computed) {
-    lazyObj->compute(lazyObj->ctx, lazyObj->out);
+    status = lazyObj->compute(lazyObj->ctx, lazyObj->out);
+    if (status != LAZY_OK) {
+      pthread_mutex_unlock(&lazyObj->lock);
+      return status;
+    }
     lazyObj->computed = true;
   }
 
@@ -83,12 +88,13 @@ LazyStatus lazyReset(LazyObject *lazyObj) {
   return LAZY_OK;
 }
 
-void IntensiveComputation(void *ctx, void *out) {
+LazyStatus IntensiveComputation(void *ctx, void *out) {
   int *result = out;
   *result = 0;
   for (int i = 0; i < 100000000; i++) {
     *result += i;
   }
+  return LAZY_OK;
 }
 
 void destroyLazyObj(LazyObject *lazyObj) {
