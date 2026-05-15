@@ -24,7 +24,7 @@ typedef struct {
   pthread_mutex_t lock;
 } LazyObject;
 
-LazyStatus validateLazyObjectConfig(const LazyObject *lazyObj, LazyComputeFn compute, void *out, size_t outSize) {
+LazyStatus validateLazyObjectInitArgs(const LazyObject *lazyObj, LazyComputeFn compute, void *out, size_t outSize) {
   if (lazyObj == NULL) return LAZY_ERR_NULL_OBJECT;
   if (compute == NULL) return LAZY_ERR_NULL_COMPUTE;
   if (out == NULL) return LAZY_ERR_NULL_OUTPUT;
@@ -32,8 +32,13 @@ LazyStatus validateLazyObjectConfig(const LazyObject *lazyObj, LazyComputeFn com
   return LAZY_OK;
 }
 
+LazyStatus validateLazyObjectConfig(const LazyObject *lazyObj) {
+  if (lazyObj == NULL) return LAZY_ERR_NULL_OBJECT;
+  return validateLazyObjectInitArgs(lazyObj, lazyObj->compute, lazyObj->out, lazyObj->outSize);
+}
+
 LazyStatus lazyObjectInit(LazyObject *lazyObj, LazyComputeFn compute, void *ctx, void *out, size_t outSize) {
-  LazyStatus status = validateLazyObjectConfig(lazyObj, compute, out, outSize);
+  LazyStatus status = validateLazyObjectInitArgs(lazyObj, compute, out, outSize);
   if (status != LAZY_OK) return status;
 
   lazyObj->computed = false;
@@ -49,12 +54,12 @@ LazyStatus lazyObjectInit(LazyObject *lazyObj, LazyComputeFn compute, void *ctx,
   return LAZY_OK;
 }
 
-void executeLazyCode(LazyObject *lazyObj) {
-  //TODO: Handle this as an error 
-  if (lazyObj == NULL) return;
-
+LazyStatus executeLazyCode(LazyObject *lazyObj) {
+  LazyStatus status = validateLazyObjectConfig(lazyObj);
+  if (status!=LAZY_OK) return status;
+  
   if (lazyObj->computed) {
-    return;
+    return LAZY_OK;
   }
 
   pthread_mutex_lock(&lazyObj->lock);
@@ -65,6 +70,7 @@ void executeLazyCode(LazyObject *lazyObj) {
   }
 
   pthread_mutex_unlock(&lazyObj->lock);
+  return LAZY_OK;
 }
 
 
@@ -104,7 +110,13 @@ int main() {
     return 0;
   }
 
-  executeLazyCode(&lazyObj);
+  status = executeLazyCode(&lazyObj);
+
+  if (status != LAZY_OK) {
+    printf("Invalid Config\n");
+    return 0;
+  }
+
   printf("Computed value: %d\n", result);
   printf("Computed: ");
   printf(lazyObj.computed ? "true\n" : "false\n");
