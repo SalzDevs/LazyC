@@ -1,5 +1,4 @@
 #include <stdio.h>
-
 #include "lazy.h"
 
 LazyStatus IntensiveComputation(void *ctx, void *out) {

@@ -27,8 +27,7 @@ static LazyStatus validateLazyCreateArgs(Lazy **lazy, LazyComputeFn compute, voi
   return LAZY_OK;
 }
 
-static LazyStatus validateLazyConfig(const Lazy *lazy) {
-  if (lazy == NULL) return LAZY_ERR_NULL_OBJECT;
+static LazyStatus validateLazyConfigLocked(const Lazy *lazy) {
   if (lazy->state != LAZY_STATE_READY && lazy->state != LAZY_STATE_COMPUTED) {
     return LAZY_ERR_INVALID_STATE;
   }
@@ -64,14 +63,19 @@ LazyStatus lazy_create(Lazy **lazy, LazyComputeFn compute, void *ctx, void *out,
 }
 
 LazyStatus lazy_eval(Lazy *lazy) {
-  LazyStatus status = validateLazyConfig(lazy);
-  if (status != LAZY_OK) return status;
+  if (lazy == NULL) return LAZY_ERR_NULL_OBJECT;
+  if (pthread_mutex_lock(&lazy->lock) != 0) return LAZY_ERR_MUTEX_LOCK;
 
-  if (lazy->state == LAZY_STATE_COMPUTED) {
-    return LAZY_OK;
+  LazyStatus status = validateLazyConfigLocked(lazy);
+  if (status != LAZY_OK) {
+    if (pthread_mutex_unlock(&lazy->lock) != 0) return LAZY_ERR_MUTEX_UNLOCK;
+    return status;
   }
 
-  if (pthread_mutex_lock(&lazy->lock) != 0) return LAZY_ERR_MUTEX_LOCK;
+  if (lazy->state == LAZY_STATE_COMPUTED) {
+    if (pthread_mutex_unlock(&lazy->lock) != 0) return LAZY_ERR_MUTEX_UNLOCK;
+    return LAZY_OK;
+  }
 
   if (lazy->state == LAZY_STATE_READY) {
     status = lazy->compute(lazy->ctx, lazy->out);
@@ -87,19 +91,32 @@ LazyStatus lazy_eval(Lazy *lazy) {
 }
 
 LazyStatus lazy_reset(Lazy *lazy) {
-  LazyStatus status = validateLazyConfig(lazy);
-  if (status != LAZY_OK) return status;
+  if (lazy == NULL) return LAZY_ERR_NULL_OBJECT;
   if (pthread_mutex_lock(&lazy->lock) != 0) return LAZY_ERR_MUTEX_LOCK;
+
+  LazyStatus status = validateLazyConfigLocked(lazy);
+  if (status != LAZY_OK) {
+    if (pthread_mutex_unlock(&lazy->lock) != 0) return LAZY_ERR_MUTEX_UNLOCK;
+    return status;
+  }
+
   lazy->state = LAZY_STATE_READY;
   if (pthread_mutex_unlock(&lazy->lock) != 0) return LAZY_ERR_MUTEX_UNLOCK;
   return LAZY_OK;
 }
 
-LazyStatus lazy_is_computed(const Lazy *lazy, bool *computed) {
-  LazyStatus status = validateLazyConfig(lazy);
-  if (status != LAZY_OK) return status;
+LazyStatus lazy_is_computed(Lazy *lazy, bool *computed) {
+  if (lazy == NULL) return LAZY_ERR_NULL_OBJECT;
   if (computed == NULL) return LAZY_ERR_NULL_OUTPUT;
+  if (pthread_mutex_lock(&lazy->lock) != 0) return LAZY_ERR_MUTEX_LOCK;
+
+  if (lazy->state != LAZY_STATE_READY && lazy->state != LAZY_STATE_COMPUTED) {
+    if (pthread_mutex_unlock(&lazy->lock) != 0) return LAZY_ERR_MUTEX_UNLOCK;
+    return LAZY_ERR_INVALID_STATE;
+  }
+
   *computed = lazy->state == LAZY_STATE_COMPUTED;
+  if (pthread_mutex_unlock(&lazy->lock) != 0) return LAZY_ERR_MUTEX_UNLOCK;
   return LAZY_OK;
 }
 

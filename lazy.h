@@ -27,6 +27,6 @@ LazyStatus lazy_create(Lazy **lazy, LazyComputeFn compute, void *ctx, void *out,
 LazyStatus lazy_eval(Lazy *lazy);
 LazyStatus lazy_reset(Lazy *lazy);
 LazyStatus lazy_destroy(Lazy *lazy);
-LazyStatus lazy_is_computed(const Lazy *lazy, bool *computed);
+LazyStatus lazy_is_computed(Lazy *lazy, bool *computed);
 
 #endif
