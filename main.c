@@ -74,11 +74,13 @@ LazyStatus executeLazyCode(LazyObject *lazyObj) {
 }
 
 
-void resetComputed(LazyObject *lazyObj) {
-  if (lazyObj == NULL) return;
+LazyStatus lazyReset(LazyObject *lazyObj) {
+  LazyStatus status = validateLazyObjectConfig(lazyObj); 
+  if (status != LAZY_OK) return status;
   pthread_mutex_lock(&lazyObj->lock);
   lazyObj->computed = false;
-  pthread_mutex_unlock(&lazyObj->lock); 
+  pthread_mutex_unlock(&lazyObj->lock);
+  return LAZY_OK;
 }
 
 void IntensiveComputation(void *ctx, void *out) {
@@ -102,7 +104,7 @@ int main() {
       IntensiveComputation,
       NULL,
       &result,
-      0
+      sizeof(result) 
   );
   printf("status: %d\n", status);
   if (status != LAZY_OK) {
@@ -120,8 +122,13 @@ int main() {
   printf("Computed value: %d\n", result);
   printf("Computed: ");
   printf(lazyObj.computed ? "true\n" : "false\n");
-  resetComputed(&lazyObj);
+  status = lazyReset(&lazyObj);
+  if (status != LAZY_OK) {
+    printf("Invalid Config\n");
+    return 0;
+  }
   printf("Computed: ");
   printf(lazyObj.computed ? "true\n" : "false\n");
+  destroyLazyObj(&lazyObj);
   return 0;
 }
