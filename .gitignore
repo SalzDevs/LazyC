@@ -1,0 +1,20 @@
+# Build outputs
+main
+tests/test_lazy
+tests/test_lazy_sanitize
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+
+# Sanitizer/core dumps
+core
+core.*
+
+# Editor/OS files
+.DS_Store
+*.swp
+*.swo
