@@ -39,6 +39,9 @@ static LazyStatus validateLazyConfig(const Lazy *lazy) {
 }
 
 LazyStatus lazy_create(Lazy **lazy, LazyComputeFn compute, void *ctx, void *out, size_t out_size) {
+  if (lazy == NULL) return LAZY_ERR_NULL_OBJECT;
+  *lazy = NULL;
+
   LazyStatus status = validateLazyCreateArgs(lazy, compute, out, out_size);
   if (status != LAZY_OK) return status;
 
