@@ -10,103 +10,103 @@ typedef enum {
   LAZY_STATE_DESTROYED
 } LazyState;
 
-struct LazyObject {
+struct Lazy {
   LazyComputeFn compute;
   LazyState state;
   void *ctx;
   void *out;
-  size_t outSize;
+  size_t out_size;
   pthread_mutex_t lock;
 };
 
-static LazyStatus validateLazyObjectCreateArgs(LazyObject **lazyObj, LazyComputeFn compute, void *out, size_t outSize) {
-  if (lazyObj == NULL) return LAZY_ERR_NULL_OBJECT;
+static LazyStatus validateLazyCreateArgs(Lazy **lazy, LazyComputeFn compute, void *out, size_t out_size) {
+  if (lazy == NULL) return LAZY_ERR_NULL_OBJECT;
   if (compute == NULL) return LAZY_ERR_NULL_COMPUTE;
   if (out == NULL) return LAZY_ERR_NULL_OUTPUT;
-  if (outSize == 0) return LAZY_ERR_INVALID_OUTPUT_SIZE;
+  if (out_size == 0) return LAZY_ERR_INVALID_OUTPUT_SIZE;
   return LAZY_OK;
 }
 
-static LazyStatus validateLazyObjectConfig(const LazyObject *lazyObj) {
-  if (lazyObj == NULL) return LAZY_ERR_NULL_OBJECT;
-  if (lazyObj->state != LAZY_STATE_READY && lazyObj->state != LAZY_STATE_COMPUTED) {
+static LazyStatus validateLazyConfig(const Lazy *lazy) {
+  if (lazy == NULL) return LAZY_ERR_NULL_OBJECT;
+  if (lazy->state != LAZY_STATE_READY && lazy->state != LAZY_STATE_COMPUTED) {
     return LAZY_ERR_INVALID_STATE;
   }
-  if (lazyObj->compute == NULL) return LAZY_ERR_NULL_COMPUTE;
-  if (lazyObj->out == NULL) return LAZY_ERR_NULL_OUTPUT;
-  if (lazyObj->outSize == 0) return LAZY_ERR_INVALID_OUTPUT_SIZE;
+  if (lazy->compute == NULL) return LAZY_ERR_NULL_COMPUTE;
+  if (lazy->out == NULL) return LAZY_ERR_NULL_OUTPUT;
+  if (lazy->out_size == 0) return LAZY_ERR_INVALID_OUTPUT_SIZE;
   return LAZY_OK;
 }
 
-LazyStatus lazyObjectCreate(LazyObject **lazyObj, LazyComputeFn compute, void *ctx, void *out, size_t outSize) {
-  LazyStatus status = validateLazyObjectCreateArgs(lazyObj, compute, out, outSize);
+LazyStatus lazy_create(Lazy **lazy, LazyComputeFn compute, void *ctx, void *out, size_t out_size) {
+  LazyStatus status = validateLazyCreateArgs(lazy, compute, out, out_size);
   if (status != LAZY_OK) return status;
 
-  *lazyObj = malloc(sizeof(**lazyObj));
-  if (*lazyObj == NULL) return LAZY_ERR_ALLOC;
+  *lazy = malloc(sizeof(**lazy));
+  if (*lazy == NULL) return LAZY_ERR_ALLOC;
 
-  (*lazyObj)->state = LAZY_STATE_READY;
-  (*lazyObj)->compute = compute;
-  (*lazyObj)->ctx = ctx;
-  (*lazyObj)->out = out;
-  (*lazyObj)->outSize = outSize;
+  (*lazy)->state = LAZY_STATE_READY;
+  (*lazy)->compute = compute;
+  (*lazy)->ctx = ctx;
+  (*lazy)->out = out;
+  (*lazy)->out_size = out_size;
 
-  if (pthread_mutex_init(&(*lazyObj)->lock, NULL) != 0) {
-    free(*lazyObj);
-    *lazyObj = NULL;
+  if (pthread_mutex_init(&(*lazy)->lock, NULL) != 0) {
+    free(*lazy);
+    *lazy = NULL;
     return LAZY_ERR_MUTEX_INIT;
   }
 
   return LAZY_OK;
 }
 
-LazyStatus executeLazyCode(LazyObject *lazyObj) {
-  LazyStatus status = validateLazyObjectConfig(lazyObj);
+LazyStatus lazy_eval(Lazy *lazy) {
+  LazyStatus status = validateLazyConfig(lazy);
   if (status != LAZY_OK) return status;
 
-  if (lazyObj->state == LAZY_STATE_COMPUTED) {
+  if (lazy->state == LAZY_STATE_COMPUTED) {
     return LAZY_OK;
   }
 
-  if (pthread_mutex_lock(&lazyObj->lock) != 0) return LAZY_ERR_MUTEX_LOCK;
+  if (pthread_mutex_lock(&lazy->lock) != 0) return LAZY_ERR_MUTEX_LOCK;
 
-  if (lazyObj->state == LAZY_STATE_READY) {
-    status = lazyObj->compute(lazyObj->ctx, lazyObj->out);
+  if (lazy->state == LAZY_STATE_READY) {
+    status = lazy->compute(lazy->ctx, lazy->out);
     if (status != LAZY_OK) {
-      if (pthread_mutex_unlock(&lazyObj->lock) != 0) return LAZY_ERR_MUTEX_UNLOCK;
+      if (pthread_mutex_unlock(&lazy->lock) != 0) return LAZY_ERR_MUTEX_UNLOCK;
       return status;
     }
-    lazyObj->state = LAZY_STATE_COMPUTED;
+    lazy->state = LAZY_STATE_COMPUTED;
   }
 
-  if (pthread_mutex_unlock(&lazyObj->lock) != 0) return LAZY_ERR_MUTEX_UNLOCK;
+  if (pthread_mutex_unlock(&lazy->lock) != 0) return LAZY_ERR_MUTEX_UNLOCK;
   return LAZY_OK;
 }
 
-LazyStatus lazyReset(LazyObject *lazyObj) {
-  LazyStatus status = validateLazyObjectConfig(lazyObj);
+LazyStatus lazy_reset(Lazy *lazy) {
+  LazyStatus status = validateLazyConfig(lazy);
   if (status != LAZY_OK) return status;
-  if (pthread_mutex_lock(&lazyObj->lock) != 0) return LAZY_ERR_MUTEX_LOCK;
-  lazyObj->state = LAZY_STATE_READY;
-  if (pthread_mutex_unlock(&lazyObj->lock) != 0) return LAZY_ERR_MUTEX_UNLOCK;
+  if (pthread_mutex_lock(&lazy->lock) != 0) return LAZY_ERR_MUTEX_LOCK;
+  lazy->state = LAZY_STATE_READY;
+  if (pthread_mutex_unlock(&lazy->lock) != 0) return LAZY_ERR_MUTEX_UNLOCK;
   return LAZY_OK;
 }
 
-LazyStatus lazyIsComputed(const LazyObject *lazyObj, bool *computed) {
-  LazyStatus status = validateLazyObjectConfig(lazyObj);
+LazyStatus lazy_is_computed(const Lazy *lazy, bool *computed) {
+  LazyStatus status = validateLazyConfig(lazy);
   if (status != LAZY_OK) return status;
   if (computed == NULL) return LAZY_ERR_NULL_OUTPUT;
-  *computed = lazyObj->state == LAZY_STATE_COMPUTED;
+  *computed = lazy->state == LAZY_STATE_COMPUTED;
   return LAZY_OK;
 }
 
-LazyStatus destroyLazyObj(LazyObject *lazyObj) {
-  if (lazyObj == NULL) return LAZY_ERR_NULL_OBJECT;
-  if (lazyObj->state != LAZY_STATE_READY && lazyObj->state != LAZY_STATE_COMPUTED) {
+LazyStatus lazy_destroy(Lazy *lazy) {
+  if (lazy == NULL) return LAZY_ERR_NULL_OBJECT;
+  if (lazy->state != LAZY_STATE_READY && lazy->state != LAZY_STATE_COMPUTED) {
     return LAZY_ERR_INVALID_STATE;
   }
-  if (pthread_mutex_destroy(&lazyObj->lock) != 0) return LAZY_ERR_MUTEX_DESTROY;
-  lazyObj->state = LAZY_STATE_DESTROYED;
-  free(lazyObj);
+  if (pthread_mutex_destroy(&lazy->lock) != 0) return LAZY_ERR_MUTEX_DESTROY;
+  lazy->state = LAZY_STATE_DESTROYED;
+  free(lazy);
   return LAZY_OK;
 }

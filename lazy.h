@@ -19,14 +19,14 @@ typedef enum {
   LAZY_ERR_ALLOC
 } LazyStatus;
 
-typedef struct LazyObject LazyObject;
+typedef struct Lazy Lazy;
 
 typedef LazyStatus (*LazyComputeFn)(void *ctx, void *out);
 
-LazyStatus lazyObjectCreate(LazyObject **lazyObj, LazyComputeFn compute, void *ctx, void *out, size_t outSize);
-LazyStatus executeLazyCode(LazyObject *lazyObj);
-LazyStatus lazyReset(LazyObject *lazyObj);
-LazyStatus destroyLazyObj(LazyObject *lazyObj);
-LazyStatus lazyIsComputed(const LazyObject *lazyObj, bool *computed);
+LazyStatus lazy_create(Lazy **lazy, LazyComputeFn compute, void *ctx, void *out, size_t out_size);
+LazyStatus lazy_eval(Lazy *lazy);
+LazyStatus lazy_reset(Lazy *lazy);
+LazyStatus lazy_destroy(Lazy *lazy);
+LazyStatus lazy_is_computed(const Lazy *lazy, bool *computed);
 
 #endif

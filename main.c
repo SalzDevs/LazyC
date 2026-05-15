@@ -16,10 +16,10 @@ LazyStatus IntensiveComputation(void *ctx, void *out) {
 int main() {
   int result = 0;
   bool computed = false;
-  LazyObject *lazyObj = NULL;
+  Lazy *lazy = NULL;
 
-  LazyStatus status = lazyObjectCreate(
-      &lazyObj,
+  LazyStatus status = lazy_create(
+      &lazy,
       IntensiveComputation,
       NULL,
       &result,
@@ -31,39 +31,39 @@ int main() {
     return 0;
   }
 
-  status = executeLazyCode(lazyObj);
+  status = lazy_eval(lazy);
   if (status != LAZY_OK) {
     printf("Eval failed\n");
-    destroyLazyObj(lazyObj);
+    lazy_destroy(lazy);
     return 0;
   }
 
   printf("Computed value: %d\n", result);
 
-  status = lazyIsComputed(lazyObj, &computed);
+  status = lazy_is_computed(lazy, &computed);
   if (status != LAZY_OK) {
     printf("Computed check failed\n");
-    destroyLazyObj(lazyObj);
+    lazy_destroy(lazy);
     return 0;
   }
   printf("Computed: %s\n", computed ? "true" : "false");
 
-  status = lazyReset(lazyObj);
+  status = lazy_reset(lazy);
   if (status != LAZY_OK) {
     printf("Reset failed\n");
-    destroyLazyObj(lazyObj);
+    lazy_destroy(lazy);
     return 0;
   }
 
-  status = lazyIsComputed(lazyObj, &computed);
+  status = lazy_is_computed(lazy, &computed);
   if (status != LAZY_OK) {
     printf("Computed check failed\n");
-    destroyLazyObj(lazyObj);
+    lazy_destroy(lazy);
     return 0;
   }
   printf("Computed: %s\n", computed ? "true" : "false");
 
-  status = destroyLazyObj(lazyObj);
+  status = lazy_destroy(lazy);
   if (status != LAZY_OK) {
     printf("Destroy failed\n");
     return 0;
